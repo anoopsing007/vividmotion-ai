@@ -1,71 +1,52 @@
-from typing import Any
+import asyncio
 from datetime import datetime
-import uuid
+from sqlalchemy.orm import Session
+from app.config import settings
+from app.models import Video
 
-
-class VideoService:
-    def __init__(self) -> None:
-        # In production, this would be a database
-        self._videos: dict[str, dict[str, Any]] = {}
-
-    def create_video(self, video_id: str, prompt: str, style: str, duration: int, aspect_ratio: str, image_url: str | None) -> dict[str, Any]:
-        """Create a new video record"""
-        video = {
-            "id": video_id,
-            "user_id": None,
-            "prompt": prompt,
-            "style": style,
-            "duration": duration,
-            "aspect_ratio": aspect_ratio,
-            "image_url": image_url,
-            "status": "processing",
-            "output_url": None,
-            "thumbnail_url": None,
-            "model_name": "stable-video-diffusion",
-            "created_at": datetime.now(),
-            "completed_at": None,
-            "error_message": None
-        }
-        self._videos[video_id] = video
-        return video
-
-    def get_video(self, video_id: str) -> dict[str, Any] | None:
-        """Get video by ID"""
-        return self._videos.get(video_id)
-
-    def update_video_status(self, video_id: str, status: str, output_url: str | None = None, thumbnail_url: str | None = None, error_message: str | None = None) -> dict[str, Any] | None:
-        """Update video status after generation"""
-        if video_id not in self._videos:
-            return None
+class AIVideoGenerator:
+    def __init__(self):
+        self.provider = settings.video_model_provider
+    
+    async def generate_async(self, video_id: str, prompt: str, style: str, duration: int, aspect_ratio: str, db: Session):
+        """Generate video asynchronously"""
+        try:
+            # Simulate processing
+            await asyncio.sleep(3)
+            
+            # Generate video based on provider
+            if self.provider == "replicate":
+                output_url = await self._generate_replicate(prompt, duration, aspect_ratio)
+            elif self.provider == "runway":
+                output_url = await self._generate_runway(prompt, duration, aspect_ratio)
+            else:
+                output_url = await self._generate_mock(prompt)
+            
+            # Update video in database
+            video = db.query(Video).filter(Video.id == video_id).first()
+            if video:
+                video.status = "completed"
+                video.output_url = output_url
+                video.completed_at = datetime.utcnow()
+                db.commit()
         
-        video = self._videos[video_id]
-        video["status"] = status
-        if output_url:
-            video["output_url"] = output_url
-        if thumbnail_url:
-            video["thumbnail_url"] = thumbnail_url
-        if error_message:
-            video["error_message"] = error_message
-        if status == "completed":
-            video["completed_at"] = datetime.now()
-        
-        return video
-
-    def list_videos(self, skip: int = 0, limit: int = 20) -> list[dict[str, Any]]:
-        """List all videos with pagination"""
-        videos_list = list(self._videos.values())
-        return sorted(videos_list, key=lambda x: x["created_at"], reverse=True)[skip : skip + limit]
-
-    def delete_video(self, video_id: str) -> bool:
-        """Delete a video"""
-        if video_id in self._videos:
-            del self._videos[video_id]
-            return True
-        return False
-
-    async def upload_image(self, file) -> str:
-        """Upload image to storage (S3/Supabase)"""
-        # In production, upload to S3 or Supabase
-        # For now, return a mock URL
-        filename = f"{uuid.uuid4()}_{file.filename}"
-        return f"https://storage.example.com/uploads/{filename}"
+        except Exception as e:
+            video = db.query(Video).filter(Video.id == video_id).first()
+            if video:
+                video.status = "failed"
+                video.error_message = str(e)
+                db.commit()
+    
+    async def _generate_replicate(self, prompt: str, duration: int, aspect_ratio: str) -> str:
+        """Generate using Replicate API"""
+        # TODO: Implement Replicate integration
+        return "https://media.giphy.com/media/l0HlQaQ6gWfllcjDO/giphy.mp4"
+    
+    async def _generate_runway(self, prompt: str, duration: int, aspect_ratio: str) -> str:
+        """Generate using Runway API"""
+        # TODO: Implement Runway integration
+        return "https://media.giphy.com/media/l0HlQaQ6gWfllcjDO/giphy.mp4"
+    
+    async def _generate_mock(self, prompt: str) -> str:
+        """Mock video generation for testing"""
+        return "https://media.giphy.com/media/l0HlQaQ6gWfllcjDO/giphy.mp4"
