@@ -1,15 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import Base, engine
-from app.routes import auth, videos
-from app.config import settings
 
-# Create tables
+from app.database import Base, engine
+from app.config import settings
+from app.routes.auth import router as auth_router
+from app.routes.videos import router as videos_router
+
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="VividMotion AI", version="0.1.0")
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -18,10 +18,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Routes
-app.include_router(auth.router, prefix=settings.api_v1_prefix)
-app.include_router(videos.router, prefix=settings.api_v1_prefix)
+app.include_router(auth_router, prefix=settings.api_v1_prefix)
+app.include_router(videos_router, prefix=settings.api_v1_prefix)
+
 
 @app.get("/health")
-def health():
+def health_check():
     return {"status": "ok", "service": "vividmotion-ai"}
