@@ -1,25 +1,71 @@
 from typing import Any
+from datetime import datetime
+import uuid
 
 
 class VideoService:
     def __init__(self) -> None:
-        self._videos: list[dict[str, Any]] = []
+        # In production, this would be a database
+        self._videos: dict[str, dict[str, Any]] = {}
 
-    def generate_video(self, payload: Any) -> dict[str, Any]:
-        video_id = f"video_{len(self._videos) + 1:04d}"
-        result = {
+    def create_video(self, video_id: str, prompt: str, style: str, duration: int, aspect_ratio: str, image_url: str | None) -> dict[str, Any]:
+        """Create a new video record"""
+        video = {
             "id": video_id,
-            "status": "completed",
-            "prompt": payload.prompt,
-            "image_url": payload.image_url or "https://images.unsplash.com/photo-1521572267360-ee0c2909d518",
-            "style": payload.style,
-            "duration": payload.duration,
-            "aspect_ratio": payload.aspect_ratio,
-            "output_url": "https://example.com/generated-video.mp4",
-            "model": "mock-video-model"
+            "user_id": None,
+            "prompt": prompt,
+            "style": style,
+            "duration": duration,
+            "aspect_ratio": aspect_ratio,
+            "image_url": image_url,
+            "status": "processing",
+            "output_url": None,
+            "thumbnail_url": None,
+            "model_name": "stable-video-diffusion",
+            "created_at": datetime.now(),
+            "completed_at": None,
+            "error_message": None
         }
-        self._videos.append(result)
-        return result
+        self._videos[video_id] = video
+        return video
 
-    def list_videos(self) -> list[dict[str, Any]]:
-        return self._videos
+    def get_video(self, video_id: str) -> dict[str, Any] | None:
+        """Get video by ID"""
+        return self._videos.get(video_id)
+
+    def update_video_status(self, video_id: str, status: str, output_url: str | None = None, thumbnail_url: str | None = None, error_message: str | None = None) -> dict[str, Any] | None:
+        """Update video status after generation"""
+        if video_id not in self._videos:
+            return None
+        
+        video = self._videos[video_id]
+        video["status"] = status
+        if output_url:
+            video["output_url"] = output_url
+        if thumbnail_url:
+            video["thumbnail_url"] = thumbnail_url
+        if error_message:
+            video["error_message"] = error_message
+        if status == "completed":
+            video["completed_at"] = datetime.now()
+        
+        return video
+
+    def list_videos(self, skip: int = 0, limit: int = 20) -> list[dict[str, Any]]:
+        """List all videos with pagination"""
+        videos_list = list(self._videos.values())
+        return sorted(videos_list, key=lambda x: x["created_at"], reverse=True)[skip : skip + limit]
+
+    def delete_video(self, video_id: str) -> bool:
+        """Delete a video"""
+        if video_id in self._videos:
+            del self._videos[video_id]
+            return True
+        return False
+
+    async def upload_image(self, file) -> str:
+        """Upload image to storage (S3/Supabase)"""
+        # In production, upload to S3 or Supabase
+        # For now, return a mock URL
+        filename = f"{uuid.uuid4()}_{file.filename}"
+        return f"https://storage.example.com/uploads/{filename}"
